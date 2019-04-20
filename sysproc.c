@@ -89,3 +89,11 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_create_container(void){
+  int cid;
+  if(argint(0, &cid) < 0)
+    return -1;
+  return create_container_func(cid);
+}

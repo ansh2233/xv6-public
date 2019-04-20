@@ -68,3 +68,4 @@ struct container{
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+int create_container_func(int);

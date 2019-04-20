@@ -17,6 +17,7 @@ struct {
 struct {
   struct spinlock lock;
   struct container container[NCONT];
+  int num_containers;
 } ctable;
 
 static struct proc *initproc;
@@ -539,3 +540,23 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+
+int
+create_container_func(int cid){
+  struct container* c;
+  acquire(&ctable.lock);
+
+  if(ctable.container[cid].cid==cid){
+      release(&ctable.lock);
+      return -1;
+  }      
+  c = &ctable.container[cid];
+  c->cid = cid;
+  c->cont_num_procs = 0;
+  ctable.num_containers ++;
+  
+  release(&ctable.lock);
+  return -1;
+}
+
