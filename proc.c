@@ -12,6 +12,13 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+// A3 
+// Added container table
+struct {
+  struct spinlock lock;
+  struct container container[NCONT];
+} ctable;
+
 static struct proc *initproc;
 
 int nextpid = 1;

@@ -49,6 +49,18 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int cid;
+};
+
+
+// A3
+// Struct for a container
+struct container{
+  int cid;
+  int pid[100];
+  int cont_num_procs;
+  int file_table[200][3];   //  | pid | actual_file_id | virtual_file_id
+  int malloc_table[100][4];   // address table 
 };
 
 // Process memory is laid out contiguously, low addresses first:
