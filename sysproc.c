@@ -91,9 +91,33 @@ sys_uptime(void)
 }
 
 int
+sys_ps(void){
+  return ps_func();
+}
+
+int
 sys_create_container(void){
   int cid;
   if(argint(0, &cid) < 0)
     return -1;
   return create_container_func(cid);
+}
+
+int
+sys_destroy_container(void){
+ int cid;
+  if(argint(0, &cid) < 0)
+    return -1;
+  return destroy_container_func(cid);
+}
+
+int sys_join_container(void){
+  int cid;
+  if(argint(0, &cid) < 0)
+    return -1;
+  return join_container_func(cid); 
+}
+
+int sys_leave_container(void){
+  return leave_container_func(); 
 }

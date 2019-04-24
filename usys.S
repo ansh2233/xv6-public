@@ -31,4 +31,8 @@ SYSCALL(sleep)
 SYSCALL(uptime)
 
 # A3
+SYSCALL(ps)
 SYSCALL(create_container)
+SYSCALL(destroy_container)
+SYSCALL(join_container)
+SYSCALL(leave_container)

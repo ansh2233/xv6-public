@@ -28,10 +28,13 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+// A3
+// Added init_lock for ctable
 void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  initlock(&ctable.lock, "ctable");
 }
 
 // Must be called with interrupts disabled
@@ -72,6 +75,9 @@ myproc(void) {
   popcli();
   return p;
 }
+
+
+int first_call = 0;
 
 //PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
@@ -119,6 +125,26 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+
+
+  // A3 (set the cid as -1)
+  acquire(&ptable.lock);
+  // int my_pid = p->pid;
+  p->cid = -1;
+  release(&ptable.lock);
+
+  // initiate the container table when making the first call
+  if(first_call==0){
+    acquire(&ctable.lock);
+    first_call = 1;
+    struct container* cont;
+    for(cont=ctable.container; cont<&ctable.container[NCONT-1]; cont++){
+      cont->cont_num_procs = 0;
+      cont->cont_num_running_procs = 0;
+      cont->allocated = 0;
+    }
+    release(&ctable.lock);
+  }
 
   return p;
 }
@@ -327,11 +353,53 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+// void
+// scheduler(void)
+// {
+//   struct proc *p;
+//   struct cpu *c = mycpu();
+//   c->proc = 0;
+  
+//   for(;;){
+//     // Enable interrupts on this processor.
+//     sti();
+
+//     // Loop over process table looking for process to run.
+//     acquire(&ptable.lock);
+
+//     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+//       if(p->state != RUNNABLE)
+//         continue;
+
+//       // Switch to chosen process.  It is the process's job
+//       // to release ptable.lock and then reacquire it
+//       // before jumping back to us.
+//       c->proc = p;
+//       switchuvm(p);
+//       p->state = RUNNING;
+
+//       swtch(&(c->scheduler), p->context);
+//       switchkvm();
+
+//       // Process is done running for now.
+//       // It should have changed its p->state before coming back.
+//       c->proc = 0;
+//     }
+//     release(&ptable.lock);
+
+//   }
+// }
+
+////////////////////////////////////////////////////////////////////////////
+      ///////////////    NEW SCHEDULER starts here ////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 void
 scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  struct container *cont;
   c->proc = 0;
   
   for(;;){
@@ -339,29 +407,72 @@ scheduler(void)
     sti();
 
     // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+    // acquire(&ctable.lock);
+    
+    // handle -1 wale container ke processes
+    for(int i=-1; i<NCONT; i++){
+      if(i==-1){
+        // schedule processes with cid = -1
+        // i.e. processes not in any container
+        acquire(&ptable.lock);
+        for(p = ptable.proc; p<&ptable.proc[NPROC]; p++ ){
+          if(p->state!=RUNNABLE || (p->cid!=-1) )
+            continue;
+
+          // this is the chosen process
+          c->proc = p;
+          switchuvm(p);
+          p->state = RUNNING;
+
+          swtch(&(c->scheduler), p->context);
+          switchkvm();
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;        
+        }
+        release(&ptable.lock);
+      }
+      else{
+        cont = &ctable.container[i];
+        if(cont->allocated!=1 || cont->cont_num_running_procs==0)
         continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+        acquire(&ptable.lock);
+        for(p = ptable.proc; p<&ptable.proc[NPROC]; p++ ){
+          if(p->state!=RUNNABLE || (p->cid!=cont->cid) )
+            continue;
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+          // this is the chosen process
+          // Switch to chosen process.  It is the process's job
+          // to release ptable.lock and then reacquire it
+          // before jumping back to us.
+          c->proc = p;
+          cprintf("NCONT is %d\n",NCONT);
+          cprintf("CONTAINER: my_cid is %d\n", cont->cid);
+          cprintf("MAKING switchuvm call: pid is %d, cid is %d\n",p->pid, p->cid);
+          switchuvm(p);
+          p->state = RUNNING;
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+          swtch(&(c->scheduler), p->context);
+          switchkvm();
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;        
+        }
+        release(&ptable.lock);
+      }
     }
-    release(&ptable.lock);
+    // release(&ctable.lock);
 
+    
   }
 }
+
+////////////////////////////////////////////////////////////////////////////
+      ///////////////    NEW SCHEDULER ends here ////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -542,21 +653,117 @@ procdump(void)
 }
 
 
+
+
+// ------------------------------------------ //
+// --------- For new system calls ----------- //
+// ------------------------------------------ //
+
+int
+ps_func()
+{
+  struct proc* curproc = myproc();
+  int my_cid = curproc->cid;
+
+  if(my_cid==-1){
+    cprintf("pid:%d name:%s cid:%d\n", curproc->pid, curproc->name, my_cid);
+    return 0;
+  }
+
+  struct proc *p;
+
+  acquire(&ptable.lock);
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state != UNUSED && p->cid==my_cid)
+      cprintf("pid:%d name:%s cid:%d\n", p->pid, p->name, p->cid);
+  }
+
+  release(&ptable.lock);
+  return 0;
+
+}
+
+
 int
 create_container_func(int cid){
   struct container* c;
   acquire(&ctable.lock);
 
-  if(ctable.container[cid].cid==cid){
+  // if container #cid is already allocated, give an error
+  if(ctable.container[cid].allocated==1){
       release(&ctable.lock);
       return -1;
   }      
   c = &ctable.container[cid];
   c->cid = cid;
+  c->allocated = 1;
   c->cont_num_procs = 0;
+  c->cont_num_running_procs = 0;
   ctable.num_containers ++;
-  
+
   release(&ctable.lock);
   return -1;
+}
+
+int
+destroy_container_func(int cid){
+  // (complete)
+  return 0;
+}
+
+int
+join_container_func(int cid){
+  struct proc *curproc = myproc();
+  acquire(&ctable.lock);
+
+  // if container #cid has not been created yet
+  if(ctable.container[cid].allocated!=1 || cid>=NCONT-1){
+    release(&ctable.lock);
+    return -1;
+  }
+
+  // update process table
+  curproc->cid = cid;
+
+  // 2.1 update container table (add in new container)
+  struct container* my_container = &ctable.container[cid];
+  my_container->cont_num_procs ++;
+  my_container->cont_num_running_procs ++;
+  my_container->pids[curproc->pid] = 1;
+
+  // // 2.2 update container table (remove from NCONT-1 container)
+  // struct container* last_container = &ctable.container[NCONT-1];
+  // last_container->cont_num_procs --;
+  // last_container->cont_num_running_procs --;
+  // last_container->pids[curproc->pid] = 0;
+
+  release(&ctable.lock);
+  return 0;
+}
+
+int leave_container_func(void){
+  struct proc* curproc = myproc();
+
+  int cid = curproc->cid;
+  if(cid==-1)
+    return -1;
+  curproc->cid = NCONT-1;
+
+  acquire(&ctable.lock);
+  // 2.1 update container table (leave current container)
+  struct container* my_container = &ctable.container[cid];
+  my_container->cont_num_procs --;
+  my_container->cont_num_running_procs --;
+  my_container->pids[curproc->pid] = 0;
+
+  // 2.2 update container table (add to NCONT-1 container)
+  // struct container* last_container = &ctable.container[NCONT-1];
+  // last_container->cont_num_procs ++;
+  // last_container->cont_num_running_procs ++;
+  // last_container->pids[curproc->pid] = 1;
+
+  release(&ctable.lock);
+  return 0;
 }
 

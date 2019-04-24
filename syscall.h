@@ -22,4 +22,8 @@
 #define SYS_close  21
 
 // A3
-#define SYS_create_container 22
+#define SYS_ps 22
+#define SYS_create_container 23
+#define SYS_destroy_container 24
+#define SYS_join_container 25
+#define SYS_leave_container 26

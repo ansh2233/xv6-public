@@ -57,8 +57,10 @@ struct proc {
 // Struct for a container
 struct container{
   int cid;
-  int pid[100];
+  int allocated;    // 1 -> container is allocated
+  int pids[100];
   int cont_num_procs;
+  int cont_num_running_procs;
   int file_table[200][3];   //  | pid | actual_file_id | virtual_file_id
   int malloc_table[100][4];   // address table 
 };
@@ -68,4 +70,10 @@ struct container{
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+int ps_func(void);
 int create_container_func(int);
+int destroy_container_func(int);
+int join_container_func(int);
+int leave_container_func(void);
+
+// destroy_container_func

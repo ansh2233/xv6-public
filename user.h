@@ -25,7 +25,13 @@ int sleep(int);
 int uptime(void);
 
 // A3
+int ps(void);
 int create_container(int);
+int destroy_container(int);
+int join_container(int);
+int leave_container(void);
+
+
 
 // ulib.c
 int stat(const char*, struct stat*);
