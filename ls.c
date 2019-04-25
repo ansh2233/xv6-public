@@ -41,6 +41,9 @@ ls(char *path)
     return;
   }
 
+  int my_cid = get_cid();
+  // printf(1,"---------ls caller: my_cid is %d------------\n", my_cid);
+
   switch(st.type){
   case T_FILE:
     printf(1, "%s %d %d %d\n", fmtname(path), st.type, st.ino, st.size);
@@ -63,7 +66,9 @@ ls(char *path)
         printf(1, "ls: cannot stat %s\n", buf);
         continue;
       }
-      printf(1, "%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
+      // print only if this file belongs to your container
+      if(is_owned(my_cid, st.ino)==1)
+        printf(1, "%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
     }
     break;
   }

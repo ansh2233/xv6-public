@@ -121,3 +121,16 @@ int sys_join_container(void){
 int sys_leave_container(void){
   return leave_container_func(); 
 }
+
+int sys_get_cid(void){
+  return get_cid_func();
+}
+
+int sys_is_owned(void){
+  int cid, inum;
+  if(argint(0, &cid) < 0)
+    return -1;
+  if(argint(1, &inum) < 0)
+    return -1;
+  return is_owned_func(cid, inum);
+}

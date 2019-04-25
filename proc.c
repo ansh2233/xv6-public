@@ -1,3 +1,12 @@
+/* ----------------------------------------------
+// ------------------- TODO ---------------------
+// ----------------------------------------------
+  1. initialise my_inum etc. in ctable
+
+// -----------------------------------------------
+// -----------------------------------------------
+// -----------------------------------------------
+*/
 #include "types.h"
 #include "defs.h"
 #include "param.h"
@@ -130,7 +139,7 @@ found:
   // A3 (set the cid as -1)
   acquire(&ptable.lock);
   // int my_pid = p->pid;
-  p->cid = -1;
+  p->cid = 0;
   release(&ptable.lock);
 
   // initiate the container table when making the first call
@@ -138,7 +147,11 @@ found:
     acquire(&ctable.lock);
     first_call = 1;
     struct container* cont;
-    for(cont=ctable.container; cont<&ctable.container[NCONT-1]; cont++){
+    cont = &ctable.container[0];
+    cont->cont_num_procs = 1;
+    cont->cont_num_running_procs = 1;
+    cont->allocated = 1;
+    for(cont=&ctable.container[1]; cont<&ctable.container[NCONT-1]; cont++){
       cont->cont_num_procs = 0;
       cont->cont_num_running_procs = 0;
       cont->allocated = 0;
@@ -410,59 +423,35 @@ scheduler(void)
     // acquire(&ctable.lock);
     
     // handle -1 wale container ke processes
-    for(int i=-1; i<NCONT; i++){
-      if(i==-1){
-        // schedule processes with cid = -1
-        // i.e. processes not in any container
-        acquire(&ptable.lock);
-        for(p = ptable.proc; p<&ptable.proc[NPROC]; p++ ){
-          if(p->state!=RUNNABLE || (p->cid!=-1) )
-            continue;
+    for(int i=0; i<NCONT; i++){
+      cont = &ctable.container[i];
+      if(cont->allocated!=1 || cont->cont_num_running_procs==0)
+      continue;
 
-          // this is the chosen process
-          c->proc = p;
-          switchuvm(p);
-          p->state = RUNNING;
+      acquire(&ptable.lock);
+      for(p = ptable.proc; p<&ptable.proc[NPROC]; p++ ){
+        if(p->state!=RUNNABLE || (p->cid!=cont->cid) )
+          continue;
 
-          swtch(&(c->scheduler), p->context);
-          switchkvm();
+        // this is the chosen process
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        // cprintf("NCONT is %d\n",NCONT);
+        // cprintf("CONTAINER: my_cid is %d\n", cont->cid);
+        // cprintf("MAKING switchuvm call: pid is %d, cid is %d\n",p->pid, p->cid);
+        switchuvm(p);
+        p->state = RUNNING;
 
-          // Process is done running for now.
-          // It should have changed its p->state before coming back.
-          c->proc = 0;        
-        }
-        release(&ptable.lock);
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;        
       }
-      else{
-        cont = &ctable.container[i];
-        if(cont->allocated!=1 || cont->cont_num_running_procs==0)
-        continue;
-
-        acquire(&ptable.lock);
-        for(p = ptable.proc; p<&ptable.proc[NPROC]; p++ ){
-          if(p->state!=RUNNABLE || (p->cid!=cont->cid) )
-            continue;
-
-          // this is the chosen process
-          // Switch to chosen process.  It is the process's job
-          // to release ptable.lock and then reacquire it
-          // before jumping back to us.
-          c->proc = p;
-          cprintf("NCONT is %d\n",NCONT);
-          cprintf("CONTAINER: my_cid is %d\n", cont->cid);
-          cprintf("MAKING switchuvm call: pid is %d, cid is %d\n",p->pid, p->cid);
-          switchuvm(p);
-          p->state = RUNNING;
-
-          swtch(&(c->scheduler), p->context);
-          switchkvm();
-
-          // Process is done running for now.
-          // It should have changed its p->state before coming back.
-          c->proc = 0;        
-        }
-        release(&ptable.lock);
-      }
+      release(&ptable.lock);
     }
     // release(&ctable.lock);
 
@@ -658,7 +647,6 @@ procdump(void)
 // ------------------------------------------ //
 // --------- For new system calls ----------- //
 // ------------------------------------------ //
-
 int
 ps_func()
 {
@@ -691,7 +679,7 @@ create_container_func(int cid){
   acquire(&ctable.lock);
 
   // if container #cid is already allocated, give an error
-  if(ctable.container[cid].allocated==1){
+  if(ctable.container[cid].allocated==1 || cid>NCONT || cid<1){
       release(&ctable.lock);
       return -1;
   }      
@@ -703,12 +691,13 @@ create_container_func(int cid){
   ctable.num_containers ++;
 
   release(&ctable.lock);
-  return -1;
+  return 0;
 }
 
 int
 destroy_container_func(int cid){
   // (complete)
+  // kill all processes
   return 0;
 }
 
@@ -723,8 +712,12 @@ join_container_func(int cid){
     return -1;
   }
 
+
   // update process table
+  acquire(&ptable.lock);
   curproc->cid = cid;
+  release(&ptable.lock);
+
 
   // 2.1 update container table (add in new container)
   struct container* my_container = &ctable.container[cid];
@@ -732,11 +725,11 @@ join_container_func(int cid){
   my_container->cont_num_running_procs ++;
   my_container->pids[curproc->pid] = 1;
 
-  // // 2.2 update container table (remove from NCONT-1 container)
-  // struct container* last_container = &ctable.container[NCONT-1];
-  // last_container->cont_num_procs --;
-  // last_container->cont_num_running_procs --;
-  // last_container->pids[curproc->pid] = 0;
+  // // 2.2 update container table (remove from 0th container)
+  struct container* zero_container = &ctable.container[0];
+  zero_container->cont_num_procs --;
+  zero_container->cont_num_running_procs --;
+  zero_container->pids[curproc->pid] = 0;
 
   release(&ctable.lock);
   return 0;
@@ -748,7 +741,7 @@ int leave_container_func(void){
   int cid = curproc->cid;
   if(cid==-1)
     return -1;
-  curproc->cid = NCONT-1;
+  curproc->cid = 0;
 
   acquire(&ctable.lock);
   // 2.1 update container table (leave current container)
@@ -757,13 +750,59 @@ int leave_container_func(void){
   my_container->cont_num_running_procs --;
   my_container->pids[curproc->pid] = 0;
 
-  // 2.2 update container table (add to NCONT-1 container)
-  // struct container* last_container = &ctable.container[NCONT-1];
-  // last_container->cont_num_procs ++;
-  // last_container->cont_num_running_procs ++;
-  // last_container->pids[curproc->pid] = 1;
+  // 2.2 update container table (add to 0th container)
+  struct container* zero_container = &ctable.container[0];
+  zero_container->cont_num_procs ++;
+  zero_container->cont_num_running_procs ++;
+  zero_container->pids[curproc->pid] = 1;
 
   release(&ctable.lock);
   return 0;
 }
 
+int
+get_cid_func() {
+  return myproc()->cid;
+}
+
+
+
+int
+is_owned_func(int cid, int inum){
+  // cprintf("HEYYY\n");
+
+  // 1. file is either in my_inums or is not in my_inums of any other container
+  int flag = 0;
+  struct container* cont;
+  for(int i=0; i<NCONT; i++){
+    cont = &ctable.container[i];
+    if(cont->allocated==0) continue;
+    if(i == cid){
+      for(int j=0; j<100; j++){
+        if(cont->my_inums[j]==inum){
+          flag = 1;
+          break;
+        }
+      }
+    }
+    else{
+      for(int j=0; j<100; j++){
+        if(cont->my_inums[j]==inum){
+          flag = 0;
+          break;
+        }
+      } 
+    }
+  }
+
+  // 2. file is not in not_my_inums
+  cont = &ctable.container[cid];
+  for(int j=0; j<100; j++){
+    if(cont->not_my_inums[j]==inum){
+      flag = 0;
+      break;
+    }
+  }
+
+  return flag; 
+}

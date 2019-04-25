@@ -50,6 +50,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int cid;
+  int pid_last_run;
 };
 
 
@@ -61,6 +62,13 @@ struct container{
   int pids[100];
   int cont_num_procs;
   int cont_num_running_procs;
+
+  int my_inums[100];
+  int size_my_inums;
+
+  int not_my_inums[100];
+  int size_not_my_inums; 
+
   int file_table[200][3];   //  | pid | actual_file_id | virtual_file_id
   int malloc_table[100][4];   // address table 
 };
@@ -75,5 +83,8 @@ int create_container_func(int);
 int destroy_container_func(int);
 int join_container_func(int);
 int leave_container_func(void);
+
+int get_cid_func(void);
+int is_owned_func(int, int);
 
 // destroy_container_func

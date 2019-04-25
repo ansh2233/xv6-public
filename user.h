@@ -31,6 +31,9 @@ int destroy_container(int);
 int join_container(int);
 int leave_container(void);
 
+int get_cid(void);
+int is_owned(int, int);
+
 
 
 // ulib.c
