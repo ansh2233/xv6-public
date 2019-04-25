@@ -461,8 +461,9 @@ scheduler(void)
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0; 
-        break;       
+        break; 
       }
+
       release(&ptable.lock);
     }
     // release(&ctable.lock);
@@ -827,4 +828,15 @@ int scheduler_log_on_func(void){
 int scheduler_log_off_func(void){
   schedule = OFF;
   return 0;
+}
+
+void maintain_container_mappings(int old_inum, int new_inum, int cid){
+  struct container* cont;
+  cont = &ctable.container[cid];
+
+  cont->my_inums[cont->size_my_inums] = new_inum;
+  cont->not_my_inums[cont->size_not_my_inums] = old_inum;
+
+  cont->size_my_inums++;
+  cont->size_not_my_inums++;
 }

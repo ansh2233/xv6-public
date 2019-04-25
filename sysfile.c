@@ -245,6 +245,8 @@ create(char *path, short type, short major, short minor)
   struct inode *ip, *dp;
   char name[DIRSIZ];
 
+
+
   if((dp = nameiparent(path, name)) == 0)
     return 0;
   ilock(dp);
@@ -257,9 +259,12 @@ create(char *path, short type, short major, short minor)
     iunlockput(ip);
     return 0;
   }
+  cprintf("---- here -----\n");
 
   if((ip = ialloc(dp->dev, type)) == 0)
     panic("create: ialloc");
+
+  cprintf("---- here2 -----\n");
 
   ilock(ip);
   ip->major = major;
@@ -281,6 +286,18 @@ create(char *path, short type, short major, short minor)
   iunlockput(dp);
 
   return ip;
+}
+
+void my_duplicate(struct inode* old_inode, struct inode* new_inode){
+  char buf[512];
+  // ilock(oldinode); ilock(newinode);
+  int off = 0;
+  int n = 0;      
+  if ((n = readi(old_inode, buf, off, sizeof(buf))) > 0)
+  {
+      writei(new_inode, buf, off, n);
+      off += n;
+  }
 }
 
 int
@@ -324,6 +341,38 @@ sys_open(void)
   }
   iunlock(ip);
   end_op();
+
+  // ip->inum ownership
+  // true
+  // if writable : COW   not_my my updates
+  
+  int my_cid = get_cid_func();
+  if(is_owned_func(my_cid, ip->inum)!=1 && myproc()->cid!=0){
+    if( ((omode & O_WRONLY) || (omode & O_RDWR)) ){
+      // impliment COW
+      char * tmp1 = path;
+      char * newpath = (char *) kalloc();
+      char * tmp2 = newpath;
+      while (*tmp1 != '\0')
+      {
+          *tmp2 = *tmp1;
+          tmp1++; tmp2++;
+      }
+      cprintf("here\n");
+      *tmp2 = '_'; tmp2++; *tmp2 = '0' + (myproc()->cid); tmp2++; *tmp2 = '\0';
+      cprintf("path: %s\n",path);
+      cprintf("new_path: %s\n",newpath);
+      struct inode* new_ip = create(newpath, T_FILE, 0, 0);
+      cprintf("here2\n");
+      maintain_container_mappings(ip->inum, new_ip->inum,myproc()->cid);
+      my_duplicate(ip, new_ip); //duplicate will also change the container table (inodes inside it)
+      ip = new_ip;
+      path = newpath;
+    }
+  }
+
+
+  // else sab sahi hai
 
   f->type = FD_INODE;
   f->ip = ip;
