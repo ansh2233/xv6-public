@@ -39,3 +39,6 @@ SYSCALL(leave_container)
 
 SYSCALL(get_cid)
 SYSCALL(is_owned)
+
+SYSCALL(scheduler_log_on)
+SYSCALL(scheduler_log_off)

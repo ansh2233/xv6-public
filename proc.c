@@ -151,10 +151,12 @@ found:
     cont->cont_num_procs = 1;
     cont->cont_num_running_procs = 1;
     cont->allocated = 1;
+    cont->last_proc = -1;
     for(cont=&ctable.container[1]; cont<&ctable.container[NCONT-1]; cont++){
       cont->cont_num_procs = 0;
       cont->cont_num_running_procs = 0;
       cont->allocated = 0;
+      cont->last_proc = -1;
     }
     release(&ctable.lock);
   }
@@ -429,7 +431,12 @@ scheduler(void)
       continue;
 
       acquire(&ptable.lock);
-      for(p = ptable.proc; p<&ptable.proc[NPROC]; p++ ){
+      
+      int last_proc = cont->last_proc;
+      // for(p = ptable.proc; p<&ptable.proc[NPROC]; p = (p+1)%ptable.proc ){
+      for (int count = 0; count < NPROC; count++){
+        last_proc = (last_proc+1)%NPROC;
+        p = &ptable.proc[last_proc];
         if(p->state!=RUNNABLE || (p->cid!=cont->cid) )
           continue;
 
@@ -438,18 +445,19 @@ scheduler(void)
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
         c->proc = p;
+        cont->last_proc = last_proc;
         // cprintf("NCONT is %d\n",NCONT);
         // cprintf("CONTAINER: my_cid is %d\n", cont->cid);
         // cprintf("MAKING switchuvm call: pid is %d, cid is %d\n",p->pid, p->cid);
         switchuvm(p);
         p->state = RUNNING;
-
         swtch(&(c->scheduler), p->context);
         switchkvm();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
-        c->proc = 0;        
+        c->proc = 0; 
+        break;       
       }
       release(&ptable.lock);
     }

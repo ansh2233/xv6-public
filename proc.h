@@ -62,6 +62,7 @@ struct container{
   int pids[100];
   int cont_num_procs;
   int cont_num_running_procs;
+  int last_proc;   
 
   int my_inums[100];
   int size_my_inums;
