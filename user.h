@@ -34,7 +34,8 @@ int leave_container(void);
 int get_cid(void);
 int is_owned(int, int);
 
-
+int scheduler_log_on(void);
+int scheduler_log_off(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -31,6 +31,9 @@ struct {
 
 static struct proc *initproc;
 
+enum state {OFF,ON};
+int schedule = OFF;
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -446,9 +449,10 @@ scheduler(void)
         // before jumping back to us.
         c->proc = p;
         cont->last_proc = last_proc;
-        // cprintf("NCONT is %d\n",NCONT);
-        // cprintf("CONTAINER: my_cid is %d\n", cont->cid);
-        // cprintf("MAKING switchuvm call: pid is %d, cid is %d\n",p->pid, p->cid);
+        if (schedule == ON){
+          cprintf("Container %d : Scheduling process %d\n",i,p->pid);
+        }
+        // scheduler_log_on_func();
         switchuvm(p);
         p->state = RUNNING;
         swtch(&(c->scheduler), p->context);
@@ -813,4 +817,14 @@ is_owned_func(int cid, int inum){
   }
 
   return flag; 
+}
+
+int scheduler_log_on_func(void){
+  schedule = ON;
+  return 0;
+}
+
+int scheduler_log_off_func(void){
+  schedule = OFF;
+  return 0;
 }

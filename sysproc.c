@@ -134,3 +134,11 @@ int sys_is_owned(void){
     return -1;
   return is_owned_func(cid, inum);
 }
+
+int sys_scheduler_log_on(void){
+  return scheduler_log_on_func();
+}
+
+int sys_scheduler_log_off(void){
+  return scheduler_log_off_func();
+}

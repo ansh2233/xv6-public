@@ -88,4 +88,7 @@ int leave_container_func(void);
 int get_cid_func(void);
 int is_owned_func(int, int);
 
+int scheduler_log_on_func(void);
+int scheduler_log_off_func(void);
+
 // destroy_container_func

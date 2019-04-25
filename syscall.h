@@ -30,3 +30,6 @@
 
 #define SYS_get_cid 27
 #define SYS_is_owned 28
+
+#define SYS_scheduler_log_on 29
+#define SYS_scheduler_log_off 30

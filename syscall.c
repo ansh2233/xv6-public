@@ -114,6 +114,9 @@ extern int sys_leave_container(void);
 extern int sys_get_cid(void);
 extern int sys_is_owned(void);
 
+extern int sys_scheduler_log_on(void);
+extern int sys_scheduler_log_off(void);
+
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
@@ -146,6 +149,9 @@ static int (*syscalls[])(void) = {
 
 [SYS_get_cid] sys_get_cid,
 [SYS_is_owned] sys_is_owned,
+
+[SYS_scheduler_log_on] sys_scheduler_log_on,
+[SYS_scheduler_log_off] sys_scheduler_log_off,
 };
 
 void
